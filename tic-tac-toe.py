@@ -253,7 +253,7 @@ class PoleEvaluation:
         field_value, non_min_or_max, min_or_max = ('x', 'min', 'max') if position.count('') % 2 == 1 else ('o', 'max', 'min')
         not_field_value = 'x' if field_value == 'o' else 'o'
         
-        human_like = self.get_right_human_like_indexes(position, field_value) if position.count('') in (3, 4, 5) else set()  # humanizing engine
+        human_like = self.get_right_human_like_indexes(position, field_value) if position.count('') in (3, 4) else set()  # humanizing engine
         
         if level != 'easy':
             # humanizing engine
@@ -341,8 +341,10 @@ class PoleButton:
         self.color = color
         self.row, self.column = row, column
 
-    def draw(self, light):
+    def draw(self, light, mouse_pos):
         pygame.draw.rect(screen, color='white' if light else self.color, rect=self.rect, border_radius=2)  # draws button
+        if pygame.Rect(self.rect).collidepoint(mouse_pos) and pole_evaluation.evaluate_pole_if_game_ended() is None:
+            pygame.draw.rect(screen, color=(LIGHT_BLUE, LIGHT_RED)[pole_evaluation.position.count('') % 2], rect=self.rect, border_radius=2, width=3)
 
 
 class TicTacToePole:
@@ -353,9 +355,9 @@ class TicTacToePole:
         except NameError:
             self.__pole = [PoleButton(col, row, color=LIGHT_YELLOW) for row in range(3) for col in range(3)]
 
-    def draw(self):
+    def draw(self, mouse_pos):
         detect_res_indexes = pole_evaluation.get_indexes_if_game_ended(analysis.stack_link)
-        [button.draw(detect_res_indexes is not None and index in detect_res_indexes) for index, button in enumerate(self.__pole)]  # draws game field
+        [button.draw(detect_res_indexes is not None and index in detect_res_indexes, mouse_pos) for index, button in enumerate(self.__pole)]  # draws game field
         for index in range(9):
             color = 'red' if pole_evaluation.position[index] == 'x' else 'blue'
             text = self.__font.render(pole_evaluation.position[index], 1, color)
@@ -369,17 +371,16 @@ class TicTacToePole:
         right_move_indexes = pole_evaluation.get_right_move_indexes('impossible')
         for index in range(9):
             if index in right_move_indexes:
-                self.__pole[index].color = (LIGHT_RED, LIGHT_BLUE)[pole_evaluation.position.count('') % 2 == 0]
+                self.__pole[index].color = (LIGHT_BLUE, LIGHT_RED)[pole_evaluation.position.count('') % 2]
 
-    def check_if_there_is_a_move(self):
+    def check_if_there_is_a_move(self, mouse_pos):
         move_symbol = 'x' if pole_evaluation.position.count('') % 2 == 1 else 'o'
-        mouse_coordinates = pygame.mouse.get_pos()
 
         if pole_evaluation.evaluate_pole_if_game_ended() is not None or settings.play_as not in (move_symbol, '2h'):
             return
         flag_add_picture_evaluation = False
         for pole_button in self.__pole:
-            if not pygame.Rect(pole_button.rect).collidepoint(mouse_coordinates):
+            if not pygame.Rect(pole_button.rect).collidepoint(mouse_pos):
                 continue
             if pole_evaluation.position[pole_button.column * 3 + pole_button.row] == '':
                 pole_evaluation.position[pole_button.column * 3 + pole_button.row] = move_symbol
@@ -470,12 +471,12 @@ class Settings:
             self.play_as = new_play_as
 
     def __check_if_evaluation_switch_is_changed(self, mouse_pos):
-        if (mouse_pos[0] - (429 + 5)) ** 2 + (mouse_pos[1] - (4 + 35 * 12 + 2 + 5)) ** 2 <= 11 ** 2:
+        if pygame.Rect((419, 4, 30, 35 * 12)).collidepoint(mouse_pos):
             self.evaluation_on = not self.evaluation_on
             other_buttons_sound.play()
 
-    def __get_analysis_info_if_analyze_button_clicked(self, mouse_coordinates):
-        if pygame.Rect((10, 595, 185, 50)).collidepoint(mouse_coordinates):
+    def __get_analysis_info_if_analyze_button_clicked(self, mouse_pos):
+        if pygame.Rect((10, 595, 185, 50)).collidepoint(mouse_pos):
             self.analysis_on = not self.analysis_on
             other_buttons_sound.play()
             analysis.change_link()
@@ -521,7 +522,7 @@ class Settings:
     def __check_if_new_position_is_chosen(self, mouse_pos):
         if not self.analysis_on:
             return
-        position_coordinates, game_positions = picture.draw_analysis()
+        position_coordinates, game_positions = picture.draw_analysis(mouse_pos)
         index = 0
         for x_coord, y_coord in position_coordinates:
             if pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5, 10 * 2, 12 * 8 + 10)).collidepoint(mouse_pos):
@@ -557,22 +558,22 @@ class Settings:
                 analysis.add(position_evaluation=None)
 
     def check_if_any_switch_is_changed(self):
-        mouse_coordinates = pygame.mouse.get_pos()
+        mouse_pos = pygame.mouse.get_pos()
 
         # setting buttons
-        self.__play_game_if_start_button_clicked(mouse_coordinates)
-        self.__take_back_if_cancel_button_clicked(mouse_coordinates)
-        self.__light_correct_squares_if_hint_button_clicked(mouse_coordinates)
-        self.__get_analysis_info_if_analyze_button_clicked(mouse_coordinates)
+        self.__play_game_if_start_button_clicked(mouse_pos)
+        self.__take_back_if_cancel_button_clicked(mouse_pos)
+        self.__light_correct_squares_if_hint_button_clicked(mouse_pos)
+        self.__get_analysis_info_if_analyze_button_clicked(mouse_pos)
 
         # setting switches
-        self.__check_if_play_as_switch_is_changed(mouse_coordinates)
-        self.__check_if_level_switch_is_changed(mouse_coordinates)
-        self.__check_if_evaluation_switch_is_changed(mouse_coordinates)
+        self.__check_if_play_as_switch_is_changed(mouse_pos)
+        self.__check_if_level_switch_is_changed(mouse_pos)
+        self.__check_if_evaluation_switch_is_changed(mouse_pos)
 
         # analyze_positions
-        self.__check_if_new_position_is_chosen(mouse_coordinates)
-        self.get_analysis_of_engine_line_position(mouse_coordinates)
+        self.__check_if_new_position_is_chosen(mouse_pos)
+        self.get_analysis_of_engine_line_position(mouse_pos)
 
 
 settings = Settings()
@@ -582,22 +583,18 @@ class Picture:
     def __init__(self):
         self.evaluation, self.evaluation_color, self.pointer = self.get_position_evaluation_to_human_eyes()
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, mouse_pos, *args, **kwargs):
         screen.fill('black')
 
         self.draw_play_as_switches()
         self.draw_rect_bar()
-
-        if settings.evaluation_on:
-            self.draw_evaluation()
-
-        self.draw_rest()
-        self.draw_evaluation_switch()
+        self.draw_rest(mouse_pos)
+        self.draw_evaluation(mouse_pos)
 
         # must be after function draw rest
         if settings.analysis_on:
-            self.draw_analysis()
-            self.draw_analysis_of_current_position()
+            self.draw_analysis(mouse_pos)
+            self.draw_analysis_of_current_position(mouse_pos)
 
         if 1.5 > time.time() - settings.hint_time > 1:
             tic_tac_toe_pole.hint(False)
@@ -605,29 +602,32 @@ class Picture:
         pygame.display.update()
 
     @staticmethod
-    def draw_analysis_of_current_position():
-        x_coord, y_coord = 5, 555
-        screen.blit(evaluation_font.render('best:', 1, 'yellow'), (5, 645))
-        mouse_position = pygame.mouse.get_pos()
+    def draw_analysis_of_current_position(mouse_pos):
+        x_coord, y_coord = 10, 555
+        screen.blit(evaluation_font.render('best:', 1, 'yellow'), (10, 645))
 
         for index, move_index in enumerate(settings.best_moves):
             x_coord += 40
 
-            recommended_move_by_computer = evaluation_font.render(f'{('C', 'B', 'A')[2 - move_index % 3]}{4 - (move_index // 3 + 1)}' if move_index is not None else '__', 1, 'yellow')
+            move_color = (LIGHT_RED, LIGHT_BLUE)[settings.best_positions[index].count('') % 2]
+            if move_index is None:
+                recommended_move_by_computer = evaluation_font.render('__', 1, 'yellow')
+            else:
+                recommended_move_by_computer = evaluation_font.render(f'{('C', 'B', 'A')[2 - move_index % 3]}{4 - (move_index // 3 + 1)}', 1, move_color)
 
             screen.blit(recommended_move_by_computer, (x_coord, 645))
             if index:
-                screen.blit(evaluation_font.render('→', 1, 'yellow'), (x_coord - 18, 645))
+                screen.blit(evaluation_font.render('→', 1, move_color), (x_coord - 18, 645))
 
-            if not pygame.Rect(x_coord - 8, 645, 40, 23).collidepoint(mouse_position):
+            if not pygame.Rect(x_coord - 18, 645, 40, 23).collidepoint(mouse_pos):
                 continue
             if index > 8:
                 x_coord -= 40
             
             index = index if index is not None else 0
-            pygame.draw.rect(screen, 'black', rect=(x_coord - 30, y_coord + 3, 83, 83))
+            pygame.draw.rect(screen, 'black', rect=(x_coord - 31, y_coord + 3, 83, 83))
             detect_res_indexes = pole_evaluation.get_indexes_if_game_ended(settings.best_positions[index])
-            color = 'white'
+            move_choice_color = color = 'white'
             if not detect_res_indexes and settings.best_positions[index] != default_pole.copy():
                 detect_res_indexes = pole_evaluation.get_right_move_indexes('impossible', position=settings.best_positions[index])
                 color = (LIGHT_BLUE, LIGHT_RED)[settings.best_positions[index].count('') % 2]
@@ -635,13 +635,18 @@ class Picture:
             for mini_row in range(3):
                 for mini_column in range(3):
                     do_paint = detect_res_indexes is not None and (mini_column * 3 + mini_row) in detect_res_indexes
-                    mini_x, mini_y = x_coord - 33 + 30 * mini_row, y_coord + 30 * mini_column
+                    move_for_paint = move_index is not None and mini_row == move_index % 3 and mini_column == move_index // 3
+                    mini_x, mini_y = x_coord - 34 + 30 * mini_row, y_coord + 30 * mini_column
                     pygame.draw.rect(screen, (LIGHT_GRAY, color)[do_paint], rect=(mini_x, mini_y, 29, 29), border_radius=2)
                     symbol = settings.best_positions[index][mini_column * 3 + mini_row]
-                    screen.blit(analyze_font.render(symbol, 1, ('blue', 'red')[symbol == 'x']), (mini_x + 7, mini_y - 6))
+                    screen.blit(analyze_font.render(symbol, 1, (((95, 95, 255), (255, 95, 95)), ('blue', (159, 0, 0)))[move_for_paint][symbol == 'x']),
+                                (mini_x + 7, mini_y - 6))
 
-    def draw_evaluation(self):
-        if self.pointer in (4, 4 + 35 * 12):
+    def draw_evaluation(self, mouse_pos):
+        if not settings.evaluation_on:
+            pygame.draw.rect(screen, settings.default_color, (429, 4, 10, 35 * 12), border_radius=10)
+            return
+        elif self.pointer in (4, 4 + 35 * 12):
             pygame.draw.rect(screen, ('blue', 'red')[self.pointer == 4], (429, 4, 10, 35 * 12), border_radius=10)
         else:
             pygame.draw.rect(screen, 'blue', (429, 4, 10, self.pointer - 4), border_top_left_radius=10, border_top_right_radius=10)
@@ -649,9 +654,14 @@ class Picture:
         for line_number in range(1, 12):
             y_coord = 4 + 35 * line_number
             pygame.draw.line(screen, 'black', start_pos=(429, y_coord), end_pos=(441, y_coord), width=(1, 3)[line_number == 6])
+        if pygame.Rect((419, 4, 30, 35 * 12)).collidepoint(mouse_pos):
+            font = evaluation_font.render(self.evaluation, 1, self.evaluation_color)
+            font_rect = font.get_rect()
+            pygame.draw.rect(screen, 'white', (429 - 10 - font_rect[2], mouse_pos[1] - 10 - 2, font_rect[2] + 5, font_rect[3] + 4))
+            screen.blit(font, (429 - font_rect[2] - 8, mouse_pos[1] - 10))
 
     @staticmethod
-    def draw_analysis():
+    def draw_analysis(mouse_pos):
         game_evals_for_drawing, game_positions = analysis.get_analysis_info()
         game_evals_for_drawing = [0] + game_evals_for_drawing
         game_positions = [default_pole.copy()] + game_positions
@@ -667,20 +677,20 @@ class Picture:
             screen.blit(level_font.render(str(move_number), 1, 'white'), (247 + move_number * 20, 715 - 192))
 
         for w in range(-6, 8, 2):
-            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[w // 4 + 1]}')[w % 6 == 0], 1, 'white'), (210, 590 + 8 * (w - 1)))
+            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[(w == 0) + 2 * (w > 0)]}')[w % 6 == 0], 1, 'white'), (210, 590 + 8 * (w - 1)))
 
         x_coord = 250
         for index_for_drawing in range(len(game_evals_for_drawing) - 1):
             start_y_eval, end_y_eval = game_evals_for_drawing[index_for_drawing: index_for_drawing + 2]
             start_y_coord, end_y_coord = 590 - start_y_eval * 8, 590 - end_y_eval * 8
             end_pos = (x_coord + 20, end_y_coord)
-            pygame.draw.line(screen, (LIGHT_BLUE, LIGHT_RED)[index_for_drawing % 2 == 0], start_pos=(x_coord, start_y_coord), end_pos=end_pos, width=5)
+            pygame.draw.line(screen, (LIGHT_RED, LIGHT_BLUE)[index_for_drawing % 2], start_pos=(x_coord, start_y_coord), end_pos=end_pos, width=5)
             coordinates_joining_lines.append(end_pos)
             x_coord += 20
 
         for position_index, coord_between_lines in enumerate(coordinates_joining_lines):
             x_coord, y_coord = coord_between_lines[0], 546
-            if not pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5, 10 * 2, 12 * 8 + 10)).collidepoint(pygame.mouse.get_pos()):
+            if not pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5, 10 * 2, 12 * 8 + 10)).collidepoint(mouse_pos):
                 continue
             pygame.draw.rect(screen, 'black', rect=(x_coord - 97, y_coord + 3, 83, 83))
             detect_res_indexes = pole_evaluation.get_indexes_if_game_ended(game_positions[position_index])
@@ -701,7 +711,7 @@ class Picture:
 
         pygame.draw.rect(screen, color=level_bar_color, rect=level_bar_rect, border_radius=10)
         for x_coord in range(-13 + 105, -13 + 105 * 5, 105):
-            pygame.draw.line(screen, color=LIGHT_GRAY, start_pos=(x_coord, 440), end_pos=(x_coord, 449), width=2)
+            pygame.draw.line(screen, color=LIGHT_GRAY, start_pos=(x_coord, 440), end_pos=(x_coord, 449), width=1)
 
         screen.blit(metal_circle_image, (-23 + 105 * settings.switcher, 435))
         for rendered_level, level_x_coord in zip(level_names_to_blit, x_coord_for_level_names):
@@ -717,18 +727,10 @@ class Picture:
         screen.blit(game_result_font.render('x', 1, 'red'), (75, 467))
         screen.blit(game_result_font.render('o', 1, 'blue'), (127, 467))
 
-    def draw_evaluation_switch(self):
-        pygame.draw.circle(screen, (LIGHT_GRAY, 'white')[settings.evaluation_on], center=(429 + 5, 4 + 35 * 12 + 2 + 5), radius=5)
-        mouse_pos = pygame.mouse.get_pos()
-        if pygame.Rect((419, 4, 30, 35 * 12)).collidepoint(mouse_pos) and settings.evaluation_on:
-            font = evaluation_font.render(self.evaluation if settings.evaluation_on else 'off', 1, self.evaluation_color if settings.evaluation_on else 'black')
-            pygame.draw.rect(screen, (LIGHT_GRAY, 'white')[settings.evaluation_on], (429 - 10 - font.get_rect()[2], mouse_pos[1] - 10 - 2, font.get_rect()[2] + 5, font.get_rect()[3] + 4))
-            screen.blit(font, (429 - font.get_rect()[2] - 8, mouse_pos[1] - 10))
-
     @staticmethod
-    def draw_rest():
+    def draw_rest(mouse_pos):
         # drawing tic-tac-toe pole
-        tic_tac_toe_pole.draw()
+        tic_tac_toe_pole.draw(mouse_pos)
         for row in range(3):
             for column in range(3):
                 screen.blit(notation_font.render(f'{('C', 'B', 'A')[2 - row]}{4 - (column + 1)}', 1, DARK_GREEN), (10 + row * 140, 112 + column * 140))
@@ -773,12 +775,13 @@ class Picture:
 picture = Picture()
 
 while app_is_opened:
-    picture()
+    mouse_pos = pygame.mouse.get_pos()
+    picture(mouse_pos)
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             app_is_opened = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             settings.check_if_any_switch_is_changed()
-            tic_tac_toe_pole.check_if_there_is_a_move()
+            tic_tac_toe_pole.check_if_there_is_a_move(mouse_pos)
             engine.move()
     clock.tick(FPS)
