@@ -343,8 +343,8 @@ class PoleButton:
 
     def draw(self, light, mouse_pos):
         pygame.draw.rect(screen, color='white' if light else self.color, rect=self.rect, border_radius=2)  # draws button
-        if pygame.Rect(self.rect).collidepoint(mouse_pos) and pole_evaluation.evaluate_pole_if_game_ended() is None:
-            pygame.draw.rect(screen, color=(LIGHT_BLUE, LIGHT_RED)[pole_evaluation.position.count('') % 2], rect=self.rect, border_radius=2, width=3)
+        if pygame.Rect(self.rect).collidepoint(mouse_pos) and pole_evaluation.evaluate_pole_if_game_ended() is None and pole_evaluation.position[self.column * 3 + self.row] == '':
+            pygame.draw.rect(screen, color=('blue', (207, 0, 0))[pole_evaluation.position.count('') % 2], rect=self.rect, border_radius=2, width=2)
 
 
 class TicTacToePole:
@@ -643,8 +643,9 @@ class Picture:
                                 (mini_x + 7, mini_y - 6))
 
     def draw_evaluation(self, mouse_pos):
+        evaluation_rect_collision = pygame.Rect((419, 4, 30, 35 * 12)).collidepoint(mouse_pos)
         if not settings.evaluation_on:
-            pygame.draw.rect(screen, settings.default_color, (429, 4, 10, 35 * 12), border_radius=10)
+            pygame.draw.rect(screen, (settings.default_color, 'white')[evaluation_rect_collision], (429, 4, 10, 35 * 12), border_radius=10)
             return
         elif self.pointer in (4, 4 + 35 * 12):
             pygame.draw.rect(screen, ('blue', 'red')[self.pointer == 4], (429, 4, 10, 35 * 12), border_radius=10)
@@ -654,7 +655,7 @@ class Picture:
         for line_number in range(1, 12):
             y_coord = 4 + 35 * line_number
             pygame.draw.line(screen, 'black', start_pos=(429, y_coord), end_pos=(441, y_coord), width=(1, 3)[line_number == 6])
-        if pygame.Rect((419, 4, 30, 35 * 12)).collidepoint(mouse_pos):
+        if evaluation_rect_collision:
             font = evaluation_font.render(self.evaluation, 1, self.evaluation_color)
             font_rect = font.get_rect()
             pygame.draw.rect(screen, 'white', (429 - 10 - font_rect[2], mouse_pos[1] - 10 - 2, font_rect[2] + 5, font_rect[3] + 4))
