@@ -5,7 +5,7 @@ import time
 
 pygame.init()
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 445, 670  # screen size
+SCREEN_WIDTH, SCREEN_HEIGHT = 445, 850  # screen size
 default_pole = ['' for _ in range(9)]
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -29,6 +29,7 @@ pygame.display.set_caption('Tic-Tac-Toe')  # name of the game
 app_is_opened = True
 
 level_font = pygame.font.SysFont('TimesNewRoman', 16)
+description_font = pygame.font.SysFont('TimesNewRoman', 14)
 evaluation_font = pygame.font.SysFont('TimesNewRoman', 20)
 notation_font = pygame.font.SysFont('TimesNewRoman', 25)
 analyze_font = pygame.font.SysFont('TimesNewRoman', 30)
@@ -48,6 +49,7 @@ level_names_to_blit = (level_font.render('easy', 1, level_bar_possible_colors[0]
                        level_font.render('normal', 1, level_bar_possible_colors[1]),
                        level_font.render('hard', 1, level_bar_possible_colors[2]),
                        level_font.render('impossible', 1, level_bar_possible_colors[3]))
+max_depth_from_level = {'easy': 0, 'normal': 2, 'hard': 4, 'impossible': 10}
 
 FPS = 60
 clock = pygame.time.Clock()
@@ -218,7 +220,250 @@ class PoleEvaluation:
             position[index] = ''
 
         return max(all_possible_moves) / 2 if min_or_max == 'max' else min(all_possible_moves) / 2
-    
+
+
+    def describe_position(self, position):
+        game_result = self.evaluate_pole_if_game_ended(position)
+        if game_result == 0:
+            return 'ничья'
+        if game_result == 10:
+            return 'победа крестиков'
+        if game_result == -10:
+            return 'победа ноликов'
+
+        sign = ('o', 'x')[position.count('') % 2]
+
+        for index in range(9):
+            if position[index] != '':
+                continue
+
+            position[index] = sign
+            if self.evaluate_pole_if_game_ended(position) in (-10, 0, 10):
+                position_description = f'{self.describe_position(position)} в 1 ход'
+                position[index] = ''
+                return position_description
+            position[index] = ''
+
+        position_evaluation = self.evaluate_position(position, ('min', 'max')[position.count('') % 2], max_depth=max_depth_from_level['impossible'] - 1)
+        position_empties = position.count('')
+        if position_empties == 9:
+            return ('ход в угол сильнейший, O без поражения только при ответе в центр.',
+                    'удар по центру заставит ноликов отвечать в угол.',
+                    'на край нолик должен сходить по вертикали или горизонтали,',
+                    'на которой расположено крайнее поле')
+        elif position_empties == 8:
+            x_index = position.index('x')
+            if x_index == 4:
+                return ('нолик должен пойти в угол. если нолик походил на край,',
+                        'а крестик хочет выиграть, он должен идти куда угодно,',
+                        'кроме противоположного от ноликов края')
+            elif x_index % 2 == 1:
+                return ('нолик должен сходить по вертикали или горизонтали,',
+                        'на которой расположен крестик. при несоблюдении правила',
+                        'крестик может выиграть ходом на пересечение вертикальных',
+                        'и горизонтальных линий X и O за исключением пересечения',
+                        'в противоложном крае от крестика. при этом если оставить',
+                        'противоположный от крестика край, можно выстроить ловушку',
+                        'куда крестик попадётся, если встанет на этот самый край,',
+                        'получив в ответ двойной удар')
+            else:
+                return ('нолик должен пойти в центр, иначе крестики победят:',
+                        '- ходом в центр или углы по вертикали горизонтали, который',
+                        '  не заполнит вертикаль горизонталь полностью, если нолик с краю',
+                        '- ходами в другие углы, если нолик в углу,',
+                        '- если нолик на той же вертикали или горизонтали, что и крестик,',
+                        '  можно идти на край, расположенный на другой',
+                        '  "горизонтали или вертикали с крестиком"')
+        # следующий elif включает в себя "position.count('') in (3, 4) и более" по умолчанию, так как иначе победить без двойного удара невозможно
+        elif abs(position_evaluation) == 512 / 2 ** 4:
+            return (f'поражение {('ноликов', 'крестиков')[position_empties % 2]} максимум в 2 хода',
+                    'перекройся от угрозы и надейся, что соперник не сможет',
+                    'поставить двойную угрозу "выстроить 3 в ряд"')
+        elif abs(position_evaluation) == 512 / 2 ** 3:
+            return (f'{('нолики', 'крестики')[position_empties % 2]} побеждают в 2 хода. найди двойной удар',
+                    '(создай две угрозы победы одновременно одним ходом)')
+        elif abs(position_evaluation) == 512 / 2 ** 2:
+            return (f'поражение {('ноликов', 'крестиков')[position_empties % 2]} максимум в 1 ход',
+                    'хотя бы перекройся от одной из угроз')
+        elif abs(position_evaluation) == 0 and (position_empties == 2 or position_empties in (3, 4)):
+            position_description = ('ничья в 1 ход', 'ничья в 2 хода')[position_empties in (3, 4)]
+            sign = ('x', 'o')[position.count('') % 2]
+            for index in range(9):
+                if position[index] != '':
+                    continue
+
+                position[index] = sign
+                if self.evaluate_pole_if_game_ended(position) in (-10, 10):
+                    position_description += f'. перекройся от угрозы'
+                    position[index] = ''
+                    return position_description
+                position[index] = ''
+            return position_description
+        elif position_empties == 5:
+            '''
+            01–03
+            · · ·   │   · · ·   │   · · ·
+            · · o   │   · o ·   │   · o ·
+            x x o   │   o x x   │   x o x
+
+            04–06
+            · · ·   │   · · ·   │   · · ·
+            · o x   │   · o x   │   · o x
+            · x o   │   o x ·   │   x · o
+
+            07–09
+            · · ·   │   · · ·   │   · · ·
+            · o x   │   o · x   │   o · x
+            x o ·   │   · x o   │   o x ·
+
+            10–12
+            · · ·   │   · · ·   │   · · ·
+            o · x   │   o x x   │   o x x
+            x · o   │   · · o   │   o · ·
+
+            13–15
+            · · ·   │   · · ·   │   · · o
+            x o x   │   x o x   │   · · ·
+            · · o   │   · o ·   │   x x o
+
+            16–18
+            · · o   │   · · o   │   · · o
+            · o x   │   · x ·   │   o · x
+            x · ·   │   x · o   │   · · x
+
+            19–21
+            · · o   │   · · o   │   · · o
+            o · x   │   o · x   │   x · ·
+            · x ·   │   x · ·   │   · x o
+
+            22–24
+            · · o   │   · · x   │   · · x
+            x · o   │   · o ·   │   o · ·
+            · x ·   │   x o ·   │   o x ·
+
+            25–26
+            · · x   │   · · x
+            o o ·   │   x · ·
+            · x ·   │   o · o
+            '''
+        elif position_empties == 6:
+            '''
+            01–03
+            · · ·   │   · · ·   │   · · ·
+            · · ·   │   · · ·   │   · · o
+            o x x   │   x o x   │   · x x
+
+            04–06
+            · · ·   │   · · ·   │   · · ·
+            · · o   │   · · o   │   · · x
+            x · x   │   x x ·   │   · x o
+
+            07–09
+            · · ·   │   · · ·   │   · · ·
+            · · x   │   · · x   │   · · x
+            o · x   │   o x ·   │   x · o
+
+            10–12
+            · · ·   │   · · ·   │   · · ·
+            · · x   │   · o ·   │   · o ·
+            x o ·   │   · x x   │   x · x
+
+            13–15
+            · · ·   │   · · ·   │   · · ·
+            · o x   │   · o x   │   · x ·
+            · x ·   │   x · ·   │   · o x
+
+            16–18
+            · · ·   │   · · ·   │   · · ·
+            · x ·   │   · x ·   │   · x o
+            · x o   │   o · x   │   · x ·
+
+            19–21
+            · · ·   │   · · ·   │   · · ·
+            · x o   │   · x x   │   o · x
+            x · ·   │   o · ·   │   · · x
+
+            22–24
+            · · ·   │   · · ·   │   · · ·
+            o · x   │   o · x   │   o x x
+            · x ·   │   x · ·   │   · · ·
+
+            25–27
+            · · ·   │   · · ·   │   · · ·
+            x · x   │   x · x   │   x o x
+            · · o   │   · o ·   │   · · ·
+
+            28–30
+            · · o   │   · · o   │   · · o
+            · · ·   │   · · ·   │   · · x
+            x · x   │   x x ·   │   x · ·
+
+            31–33
+            · · o   │   · · o   │   · · o
+            · x ·   │   x · ·   │   x · ·
+            x · ·   │   · · x   │   · x ·
+
+            34–36
+            · · x   │   · · x   │   · · x
+            · · ·   │   · · ·   │   · o ·
+            x · o   │   x o ·   │   x · ·
+
+            37–38
+            · · x   │   · · x
+            o · ·   │   o · ·
+            · · x   │   · x ·
+            '''
+        elif position_empties in (5, 6):
+            '''
+            01–03
+            · · ·   │   · · ·   │   · · ·
+            · · ·   │   · · ·   │   · · ·
+            · o x   │   · x o   │   o · x
+
+            04–06
+            · · ·   │   · · ·   │   · · ·
+            · · o   │   · · o   │   · · x
+            · x ·   │   x · ·   │   o · ·
+
+            07–09
+            · · ·   │   · · ·   |   · · ·
+            · o ·   │   · o ·   |   o · x
+            · · x   │   · x ·   |   · · ·
+            '''
+        elif position_empties == 7:
+            x_index, o_index = position.index('x'), position.index('o')
+            if x_index == 4:
+                if o_index % 2 == 1:
+                    return ('если хочешь выиграть, иди куда угодно, кроме противоположного',
+                            'от ноликов края, затем нанеси двойной удар (две угрозы победы),',
+                            'при этом перекрывшись от ноликов, если они создали угрозу победы')
+                else:
+                    return ('здесь очень много форсированных ничейных вариантов, с ними легко',
+                            'справиться. единственный коварный в этой позиции ход - крестик в',
+                            'противоположный от нолика угол. на него надо отвечать ноликом',
+                            'в угол, дабы не отведать в ответ двойного удара (вкус поражения)')
+            elif x_index % 2 != 1:
+                if o_index % 2 != 1:
+                    if o_index + x_index == 8:
+                        return ('ходи на 1 из углов. нолик, перекрывшись, не сможет создать угрозу,',
+                                'после чего ему нанесёшь двойной удар')
+                    else:
+
+            elif x_index % 2 == 1:
+                return ('нолик должен сходить по вертикали или горизонтали,',
+                        'на которой расположен крестик. при несоблюдении правила',
+                        'крестик может выиграть ходом на пересечение вертикальных',
+                        'и горизонтальных линий X и O за исключением пересечения',
+                        'в противоложном крае от крестика')
+            else:
+                return ('нолик должен пойти в центр, иначе крестики победят:',
+                        '- ходом в центр или углы по вертикали горизонтали, который',
+                        '  не заполнит вертикаль горизонталь полностью, если нолик с краю',
+                        '- ходами в другие углы, если нолик в углу,',
+                        '- если нолик на той же вертикали или горизонтали, что и крестик,',
+                        '  можно идти на край, расположенный на другой',
+                        '  "горизонтали или вертикали с крестиком"')
+
     
     def get_right_human_like_indexes(self, position, field_value):
         empty_poles = [i for i in range(9) if position[i] == '']
@@ -240,7 +485,6 @@ class PoleEvaluation:
     def get_right_move_indexes(self, level, position=None):
         if position is None:
             position = self.position.copy()
-        max_depth_from_level = {'easy': 0, 'normal': 2, 'hard': 4, 'impossible': 10}
         good_indexes, next_position_from_index = list(), dict()
 
         if self.evaluate_pole_if_game_ended(position) is not None:
@@ -606,6 +850,17 @@ class Picture:
         x_coord, y_coord = 10, 555
         screen.blit(evaluation_font.render('best:', 1, 'yellow'), (10, 645))
 
+        description = pole_evaluation.describe_position(pole_evaluation.position)
+        if type(description) is str:
+            description = (description,)
+        try:
+            for indx, i in enumerate(description):
+                description_text = description_font.render(i, 1, 'white')
+                screen.blit(description_text, (12, 670 + 20 * indx))
+        except:
+            pass
+
+
         for index, move_index in enumerate(settings.best_moves):
             x_coord += 40
 
@@ -614,7 +869,6 @@ class Picture:
                 recommended_move_by_computer = evaluation_font.render('__', 1, 'yellow')
             else:
                 recommended_move_by_computer = evaluation_font.render(f'{('C', 'B', 'A')[2 - move_index % 3]}{4 - (move_index // 3 + 1)}', 1, move_color)
-
             screen.blit(recommended_move_by_computer, (x_coord, 645))
             if index:
                 screen.blit(evaluation_font.render('→', 1, move_color), (x_coord - 18, 645))
