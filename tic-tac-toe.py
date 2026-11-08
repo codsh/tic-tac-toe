@@ -2,6 +2,7 @@ import random
 import pygame
 import math
 import time
+import re
 
 pygame.init()
 
@@ -222,6 +223,31 @@ class PoleEvaluation:
         return max(all_possible_moves) / 2 if min_or_max == 'max' else min(all_possible_moves) / 2
 
 
+    def compare_position_with_symmetrics(self, position, position2):
+        symmetric_positions = []
+
+        # Исходная доска и её повороты
+        for _ in range(4):
+            symmetric_positions.append(position.copy())
+            position = [position[6], position[3], position[0],
+                        position[7], position[4], position[1],
+                        position[8], position[5], position[2]]
+
+        # Отражение относительно вертикальной оси
+        position = [symmetric_positions[0][2], symmetric_positions[0][1], symmetric_positions[0][0],
+                    symmetric_positions[0][5], symmetric_positions[0][4], symmetric_positions[0][3],
+                    symmetric_positions[0][8], symmetric_positions[0][7], symmetric_positions[0][6]]
+
+        # Повороты отражённой доски
+        for _ in range(4):
+            symmetric_positions.append(position.copy())
+            position = [position[6], position[3], position[0],
+                        position[7], position[4], position[1],
+                        position[8], position[5], position[2]]
+
+        return position2 in symmetric_positions
+
+
     def describe_position(self, position):
         game_result = self.evaluate_pole_if_game_ended(position)
         if game_result == 0:
@@ -244,19 +270,22 @@ class PoleEvaluation:
                 return position_description
             position[index] = ''
 
-        position_evaluation = self.evaluate_position(position, ('min', 'max')[position.count('') % 2], max_depth=max_depth_from_level['impossible'] - 1)
         position_empties = position.count('')
+        if position_empties not in (9, 8):
+            position_evaluation = self.evaluate_position(position, ('min', 'max')[position.count('') % 2], max_depth=max_depth_from_level['impossible'] - 1)
         if position_empties == 9:
-            return ('ход в угол сильнейший, O без поражения только при ответе в центр.',
-                    'удар по центру заставит ноликов отвечать в угол.',
-                    'на край нолик должен сходить по вертикали или горизонтали,',
-                    'на которой расположено крайнее поле')
+            return ('ход в "угол" сильнейший, O без поражения только при ответе в центр.',
+                    'удар по "центр"-у заставит ноликов отвечать в угол.',
+                    'на "край" нолик должен сходить по вертикали или горизонтали,',
+                    'на которой расположен крестик.',
+                    'оценка позиции: ничья в 5 ходов')
         elif position_empties == 8:
             x_index = position.index('x')
             if x_index == 4:
                 return ('нолик должен пойти в угол. если нолик походил на край,',
                         'а крестик хочет выиграть, он должен идти куда угодно,',
-                        'кроме противоположного от ноликов края')
+                        'кроме противоположного от ноликов края.',
+                        'оценка позиции: ничья в 4 хода')
             elif x_index % 2 == 1:
                 return ('нолик должен сходить по вертикали или горизонтали,',
                         'на которой расположен крестик. при несоблюдении правила',
@@ -265,7 +294,8 @@ class PoleEvaluation:
                         'в противоложном крае от крестика. при этом если оставить',
                         'противоположный от крестика край, можно выстроить ловушку',
                         'куда крестик попадётся, если встанет на этот самый край,',
-                        'получив в ответ двойной удар')
+                        'получив в ответ двойной удар.',
+                        'оценка позиции: ничья в 4 хода')
             else:
                 return ('нолик должен пойти в центр, иначе крестики победят:',
                         '- ходом в центр или углы по вертикали горизонтали, который',
@@ -273,15 +303,18 @@ class PoleEvaluation:
                         '- ходами в другие углы, если нолик в углу,',
                         '- если нолик на той же вертикали или горизонтали, что и крестик,',
                         '  можно идти на край, расположенный на другой',
-                        '  "горизонтали или вертикали с крестиком"')
+                        '  "горизонтали или вертикали с крестиком".',
+                        '  оценка позиции: ничья в 4 хода')
         # следующий elif включает в себя "position.count('') in (3, 4) и более" по умолчанию, так как иначе победить без двойного удара невозможно
         elif abs(position_evaluation) == 512 / 2 ** 4:
             return (f'поражение {('ноликов', 'крестиков')[position_empties % 2]} максимум в 2 хода',
-                    'перекройся от угрозы и надейся, что соперник не сможет',
-                    'поставить двойную угрозу "выстроить 3 в ряд"')
+                    'перекройся от угрозы и надейся, что соперник не',
+                    'поставит двойную угрозу "выстроить 3 в ряд"')
         elif abs(position_evaluation) == 512 / 2 ** 3:
             return (f'{('нолики', 'крестики')[position_empties % 2]} побеждают в 2 хода. найди двойной удар',
-                    '(создай две угрозы победы одновременно одним ходом)')
+                    '(создай две угрозы победы одновременно одним ходом).',
+                    'при этом, если есть со стороны оппонента угроза',
+                    '"выстроить 3 в ряд", предотврати её')
         elif abs(position_evaluation) == 512 / 2 ** 2:
             return (f'поражение {('ноликов', 'крестиков')[position_empties % 2]} максимум в 1 ход',
                     'хотя бы перекройся от одной из угроз')
@@ -299,119 +332,89 @@ class PoleEvaluation:
                     return position_description
                 position[index] = ''
             return position_description
-        elif position_empties == 5:
-            '''
-            01–03
-            · · ·   │   · · ·   │   · · ·
-            · · o   │   · o ·   │   · o ·
-            x x o   │   o x x   │   x o x
-
-            04–06
-            · · ·   │   · · ·   │   · · ·
-            · o x   │   · o x   │   · o x
-            · x o   │   o x ·   │   x · o
-
-            07–09
-            · · ·   │   · · ·   │   · · ·
-            · o x   │   o · x   │   o · x
-            x o ·   │   · x o   │   o x ·
-
-            10–12
-            · · ·   │   · · ·   │   · · ·
-            o · x   │   o x x   │   o x x
-            x · o   │   · · o   │   o · ·
-
-            13–15
-            · · ·   │   · · ·   │   · · o
-            x o x   │   x o x   │   · · ·
-            · · o   │   · o ·   │   x x o
-
-            16–18
-            · · o   │   · · o   │   · · o
-            · o x   │   · x ·   │   o · x
-            x · ·   │   x · o   │   · · x
-
-            19–21
-            · · o   │   · · o   │   · · o
-            o · x   │   o · x   │   x · ·
-            · x ·   │   x · ·   │   · x o
-
-            22–24
-            · · o   │   · · x   │   · · x
-            x · o   │   · o ·   │   o · ·
-            · x ·   │   x o ·   │   o x ·
-
-            25–26
-            · · x   │   · · x
-            o o ·   │   x · ·
-            · x ·   │   o · o
-            '''
         elif position_empties == 6:
+            if any([self.compare_position_with_symmetrics(position, position2) for position2 in
+                    (['', '', '', '', 'o', '', '', 'x', 'x'], ['', '', '', '', 'x', '', 'o', '', 'x'], ['', '', '', '', 'x', 'x', 'o', '', ''],
+                     ['', '', 'x', '', '', '', 'x', 'o', ''], ['', '', '', '', 'o', '', 'x', '', 'x'])]):
+                return (f'форсированная {picture.get_natural_text_position_evaluation(position)}',
+                        'защищайтесь от угроз "выстроить три в ряд" друг друга.',
+                        'если угрозы вам нет, сами её создайте')
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'x', 'o', 'x', '', '', '']):
+                return (f'{picture.get_natural_text_position_evaluation(position, other_natural=True)}. сходи на любое поле, после чего найди',
+                        'двойной удар (создай две угрозы победы одновременно одним ходом).',
+                        'при этом, если есть со стороны оппонента угроза',
+                        '"выстроить 3 в ряд", предотврати её')
+            elif self.compare_position_with_symmetrics(position, ['', '', 'x', '', 'o', '', 'x', '', '']):
+                return (f'в угол пойдёшь - двойного удара в угол отведаешь с поражением',
+                        'на край пойдёшь - ничью в 3 хода форсируешь (останется',
+                        'перекрываться от угроз друг друга, пока ничья не наступит)')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in
+                      (['', '', 'o', '', '', '', 'x', 'x', ''], ['', '', '', '', '', 'o', 'x', 'x', ''])]):
+                return (f'{picture.get_natural_text_position_evaluation(position)}. защитись от угрозы победы крестиков,',
+                        'после чего (если крестики защитятся от твоей угрозы) найди',
+                        'двойной удар (создай две угрозы победы одновременно одним ходом)')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in
+                      (['', '', '', 'o', '', 'x', 'x', '', ''], ['', '', '', '', '', 'x', 'x', '', 'o'])]):
+                return (f'крестики поставили коварную ловушку, но не',
+                        'переживай - позиция ничейная (равная). твоя задача - найти',
+                        'хотя бы одно такое поле, на которое крестики наступят',
+                        'и нанесут двойной удар, и встать на него самому,',
+                        'тем самым защитившись от обеих угроз')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in
+                    (['', '', '', 'o', '', 'x', 'x', '', ''], ['', '', '', '', '', 'x', 'x', '', 'o'])]):
+                return (f'крестики поставили коварную ловушку, но не',
+                        'переживай - позиция ничейная (равная). твоя задача - найти',
+                        'хотя бы одно такое поле, на которое крестики наступят',
+                        'и нанесут двойной удар, и встать на него самому,',
+                        'тем самым защитившись от обеих угроз')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', '', '', 'o', 'x', 'x'],)]):
+                return (f'{picture.get_natural_text_position_evaluation(position, other_natural=True)}. создай угрозу так, чтобы крестики,',
+                        'перекрывшись, не создали при этом свою. затем найди двойной удар')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', '', '', 'x', 'o', 'x'], ['', '', 'o', 'x', '', '', '', '', 'x'])]):
+                return (f'равная позиция. крестики могут нанести 3 разных двойных удара,',
+                        'единственное, что остановит все 3 угрозы - создание своей,',
+                        'от которой они не смогут перекрыться нанесением двойного удара')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', 'x', '', 'x', '', 'o', ''],)]):
+                return (f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}',
+                        'перекройся от угрозы, потом найдёшь двойной удар')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', 'x', '', 'x', '', '', 'o'],)]):
+                return (f'форсированная {picture.get_natural_text_position_evaluation(position)}',
+                        'просто перекрывайся от угроз крестиков. если крестик не перекроется',
+                        'от твоей угрозы, нанеси ему моментальное поражение. следующим',
+                        '(после этого твоего хода) твоим ходом случайно получится',
+                        'двойной удар, от которого крестик не сможет защищиться')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'x', 'o', '', 'x', '', '', ''],)]):
+                return (f'равная позиция. перекройся от угрозы крестика.',
+                        'если крестик не сходит в угол, сам пойди в угол, нанеся двойной удар,',
+                        'при этом, если крестик угрожает победить, сходи в угол, который',
+                        'такую угрозу предотвратит')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', '', 'x', '', 'x', 'o'], ['', '', '', '', 'o', 'x', '', 'x', ''])]):
+                return (f'крестик угрожает нанести двойной удар ходом в {('центр', 'угол')[position[4] == 'o']}.',
+                        'дабы сохранить равенство, сходи на одну из линий, где',
+                        'крестики потенциально, после угрозы двойного удара,',
+                        'могут выстроить "3 в ряд"')
+            
+
             '''
-            01–03
-            · · ·   │   · · ·   │   · · ·
-            · · ·   │   · · ·   │   · · o
-            o x x   │   x o x   │   · x x
+            1-2
+            · · ·   |   · · ·
+            · · x   |   · · x
+            o x ·   |   x o ·
 
-            04–06
-            · · ·   │   · · ·   │   · · ·
-            · · o   │   · · o   │   · · x
-            x · x   │   x x ·   │   · x o
+            3-4
+            · · ·   |   · · ·
+            · o x   |   · x ·
+            x · ·   |   · x o
 
-            07–09
-            · · ·   │   · · ·   │   · · ·
-            · · x   │   · · x   │   · · x
-            o · x   │   o x ·   │   x · o
-
-            10–12
-            · · ·   │   · · ·   │   · · ·
-            · · x   │   · o ·   │   · o ·
-            x o ·   │   · x x   │   x · x
-
-            13–15
-            · · ·   │   · · ·   │   · · ·
-            · o x   │   · o x   │   · x ·
-            · x ·   │   x · ·   │   · o x
-
-            16–18
-            · · ·   │   · · ·   │   · · ·
-            · x ·   │   · x ·   │   · x o
-            · x o   │   o · x   │   · x ·
-
-            19–21
-            · · ·   │   · · ·   │   · · ·
-            · x o   │   · x x   │   o · x
-            x · ·   │   o · ·   │   · · x
-
-            22–24
-            · · ·   │   · · ·   │   · · ·
-            o · x   │   o · x   │   o x x
-            · x ·   │   x · ·   │   · · ·
-
-            25–27
-            · · ·   │   · · ·   │   · · ·
-            x · x   │   x · x   │   x o x
-            · · o   │   · o ·   │   · · ·
-
-            28–30
-            · · o   │   · · o   │   · · o
-            · · ·   │   · · ·   │   · · x
-            x · x   │   x x ·   │   x · ·
-
-            31–33
-            · · o   │   · · o   │   · · o
-            · x ·   │   x · ·   │   x · ·
-            x · ·   │   · · x   │   · x ·
-
-            34–36
-            · · x   │   · · x   │   · · x
-            · · ·   │   · · ·   │   · o ·
-            x · o   │   x o ·   │   x · ·
-
-            37–38
-            · · x   │   · · x
-            o · ·   │   o · ·
-            · · x   │   · x ·
+            5-8
+            · · ·   │   · · ·   |   · · o   |   · · x
+            o · x   │   o x x   |   · · x   |   o · ·
+            · x ·   │   · · ·   |   x · ·   |   · x ·
+            
+            9-10
+            · · o   │   · · o
+            · x ·   │   x · ·
+            x · ·   │   · x ·
             '''
         elif position_empties == 7:
             x_index, o_index = position.index('x'), position.index('o')
@@ -419,17 +422,20 @@ class PoleEvaluation:
                 if o_index % 2 == 1:
                     return ('если хочешь выиграть, иди куда угодно, кроме противоположного',
                             'от ноликов края, затем нанеси двойной удар (две угрозы победы),',
-                            'при этом перекрывшись от ноликов, если они создали угрозу победы')
+                            'при этом перекрывшись от ноликов, если они создали угрозу победы.',
+                            f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                 else:
                     return ('здесь очень много форсированных ничейных вариантов, с ними легко',
                             'справиться. единственный коварный в этой позиции ход - крестик в',
                             'противоположный от нолика угол. на него надо отвечать ноликом',
-                            'в угол, дабы не отведать в ответ двойного удара (вкус поражения)')
+                            'в угол, дабы не отведать в ответ двойного удара (вкус поражения).',
+                            f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
             elif x_index % 2 != 1:
                 if o_index % 2 != 1:
                     if o_index + x_index == 8:
-                        return ('ходи на 1 из углов. нолик, перекрывшись, не сможет создать угрозу,',
-                                'после чего ему нанесёшь двойной удар')
+                        return ('ходи на 1 из углов. нолик, перекрывшись, не создаст угрозу,',
+                                'после чего ему нанесёшь двойной удар.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                     elif o_index == 4:
                         return ('- если создашь угрозу сразу, получится ничья, так как будете',
                                 '  вынужденно защищаться от угроз друг друга до конца партии',
@@ -438,15 +444,17 @@ class PoleEvaluation:
                                 '  пересечении горизонталей и вертикалей крестиков".',
                                 '  если оба крестика в углу, нолик должен защититься ходом на край,',
                                 '  если один из них с краю, нолик должен идти на поля соседние с',
-                                '  "крестиком на крае" по вертикали, горизонтали или диагонали')
+                                '  "крестиком на крае" по вертикали, горизонтали или диагонали.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                     else:
                         return ('создай угрозу, от которой "нолик будет вынужден перекрыться,',
-                                'не создав при этом свою угрозу". затем обыграй, нанеся двойной удар')
+                                'не создав при этом свою угрозу". затем обыграй, нанеся двойной удар.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                 else:
                     if abs(o_index - x_index) == 3 or o_index // 3 == x_index // 3:
-                        print(o_index, x_index)
                         return ('создай угрозу, от которой "нолик будет вынужден перекрыться,',
-                                'не создав при этом свою угрозу". затем обыграй, нанеся двойной удар')
+                                'не создав при этом свою угрозу". затем обыграй, нанеся двойной удар.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                     else:
                         return ('поставь крестик в не противоположный от крестика угол, либо центр,',
                                 'чтобы позже обыграть, нанеся двойной удар',
@@ -454,7 +462,8 @@ class PoleEvaluation:
                                 'так ты проиграешь от "перекрытия с угрозой" и "двойного удара на',
                                 'следующем ходу". остальные ходы дадут "форсированную ничью",',
                                 'либо "сложную ничью, где крестик или нолик должны будут искать',
-                                'точную защиту от двойного удара одного из них"')
+                                'точную защиту от двойного удара одного из них".',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
             else:
                 if abs(o_index - x_index) % 3 != 0 and o_index // 3 != x_index // 3:
                     return ('можешь выиграть ходом на "пересечение вертикальных',
@@ -462,18 +471,75 @@ class PoleEvaluation:
                             'в противоложном крае от крестика" с последующим',
                             'нанесением двойного удара. в остальных случаях либо',
                             'проиграешь, либо будет "острая борьба одного из вас,',
-                            'в зависимости от ситуации, за ничью", либо "форсированная ничья"')
+                            'в зависимости от ситуации, за ничью", либо "форсированная ничья".',
+                            f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                 elif x_index + o_index != 8:
-                    return ('срочно ходи на одну из вертикалей, горизонталей или диагоналей,',
-                            'занимаемую ноликом и не занимаемую крестиком, чтобы не получить',
-                            'угрозу от нолика и последующий двойной удар с поражением.',
-                            'при этом если не создавать угрозу поставить 3 крестика в ряд,',
-                            'нолик может ошибиться, а ты ему поставишь двойной удар с победой')
+                    if o_index == 4:
+                        return ('срочно ходи на одну из вертикалей, горизонталей или диагоналей,',
+                                'занимаемую ноликом и не занимаемую крестиком, чтобы не получить',
+                                'угрозу от нолика и последующий двойной удар с поражением.',
+                                'при этом если не создавать угрозу поставить 3 крестика в ряд,',
+                                'нолик может ошибиться, а ты ему поставишь двойной удар с победой.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
+                    else:
+                        return ('срочно ходи на одну из вертикалей, горизонталей или диагоналей,',
+                                'занимаемую ноликом и не занимаемую крестиком, чтобы не получить',
+                                'угрозу от нолика и последующий двойной удар с поражением.',
+                                'при этом если не создавать угрозу поставить 3 крестика в ряд,',
+                                'особенно ловушечно поставить крестик не в противоположный от',
+                                'нолика угол (там ему придётся защищаться от двух двойных ударов),',
+                                'возникнет опасная для нолика позиция, нолик может ошибиться,',
+                                'а ты ему поставишь двойной удар с победой.',
+                                f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
                 else:
                     return ('при ходе на любое поле получится ничья, но можешь попытать',
                             'удачу и не создавать угрозу поставить 3 крестика в ряд.',
                             'если нолик не заметит подвоха и правильно не защитится,',
-                            'сможешь нанести ему двойной удар и впоследствии победить')
+                            'сможешь нанести ему двойной удар и впоследствии победить.',
+                            'особенно ловушечно поставить крестик в соседний от',
+                            'нолика угол (там ему придётся защищаться от двух двойных ударов),',
+                            'возникнет опасная для нолика позиция, нолик может ошибиться,',
+                            'а ты ему поставишь двойной удар с победой.',
+                            f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}')
+        elif position_empties == 5:
+            if any([self.compare_position_with_symmetrics(position, position2) for position2 in
+                    (['', '', '', '', 'o', '', 'o', 'x', 'x'], ['', '', '', '', 'o', '', 'x', 'o', 'x'], ['', '', '', '', 'o', 'x', '', 'x', 'o'],
+                     ['', '', '', '', 'o', 'x', 'o', 'x', ''], ['', '', '', '', 'o', 'x', 'x', '', 'o'], ['', '', '', 'o', 'x', 'x', 'o', '', ''],
+                     ['', '', 'o', '', 'x', '', 'x', '', 'o'], ['', '', 'x', '', 'o', '', 'x', 'o', ''], ['', '', 'x', 'o', 'o', '', '', 'x', ''])
+                    ]):
+                return (f'форсированная {picture.get_natural_text_position_evaluation(position)}',
+                        'защищайтесь от угроз "выстроить три в ряд" друг друга.',
+                        'если угрозы вам нет, сами её создайте')
+            elif self.compare_position_with_symmetrics(position, ['', '', 'o', 'x', '', 'o', '', 'x', '']):
+                return (f'форсированная {picture.get_natural_text_position_evaluation(position)}',
+                        'просто перекрывайся от угроз ноликов.',
+                        'если нолик не перекроется от твоей угрозы,',
+                        'нанеси ему моментальное поражение')
+            
+
+            '''
+            1–5
+            · · ·   │   · · ·   │   · · ·
+            · o x   │   o · x   │   o · x
+            x o ·   │   · x o   │   o x ·
+            -----------------------------
+            · · ·   │   · · ·
+            o · x   │   o x x
+            x · o   │   · · o
+
+            6-11
+            · · o   │   · · o
+            · o x   │   o · x
+            x · ·   │   · · x
+            -----------------
+            · · o   │   · · o
+            o · x   │   o · x
+            · x ·   │   x · ·
+            -----------------
+            · · x   |   · · x
+            o · ·   |   x · ·
+            o x ·   |   o · o
+            '''
 
     
     def get_right_human_like_indexes(self, position, field_value):
@@ -733,6 +799,7 @@ class Settings:
     def __get_analysis_info_if_analyze_button_clicked(self, mouse_pos):
         if pygame.Rect((10, 595, 185, 50)).collidepoint(mouse_pos):
             self.analysis_on = not self.analysis_on
+            self.evaluation_on = self.analysis_on
             other_buttons_sound.play()
             analysis.change_link()
             if self.analysis_on:
@@ -1015,12 +1082,23 @@ class Picture:
         pygame.draw.rect(screen, color=(LIGHT_RED, LIGHT_GREEN)[settings.analysis_on], rect=(10, 595, 185, 50))  # analyze button rect
         screen.blit(analyze_font.render('analyze game', 1, 'black'), (20, 600))
 
+
+    def get_natural_text_position_evaluation(self, position, other_natural=False):
+        eval_bar_text = self.get_position_evaluation_to_human_eyes(position)[0]
+        if 'x = o' in eval_bar_text:
+            return f'ничья в {(b := (position.count('') + 1) // 2)} ход{'а' * (b != 1)}'
+        if not other_natural:
+            return f'{('поражение', 'победа')[(a := int(re.search(r'\d', eval_bar_text)[0])) % 2]} {('ноликов', 'крестиков')[position.count('') % 2]} в {(b := (a + 1) // 2)} ход{'а' * (b != 1)}'
+        return f'{('нолики', 'крестики')[position.count('') % 2]} {('проигрывают', 'побеждают')[(a := int(re.search(r'\d', eval_bar_text)[0])) % 2]} в {(b := (a + 1) // 2)} ход{'а' * (b != 1)}'
+
+
     @staticmethod
-    def get_position_evaluation_to_human_eyes():
-        if pole_evaluation.position.count('') == 9:
+    def get_position_evaluation_to_human_eyes(position=None):
+        position = (pole_evaluation.position, position)[bool(position)]
+        if position.count('') == 9:
             return 'x = o', DARK_GREEN, 4 + 35 * 6
-        min_or_max = 'max' if pole_evaluation.position.count('') % 2 == 1 else 'min'
-        position_eval = pole_evaluation.evaluate_position(pole_evaluation.position, min_or_max, max_depth=10)
+        min_or_max = 'max' if position.count('') % 2 == 1 else 'min'
+        position_eval = pole_evaluation.evaluate_position(position, min_or_max, max_depth=10)
         if position_eval == 0 or abs(position_eval) == 512:
             abs_of_position_eval_to_human = ''
         else:
