@@ -66,7 +66,7 @@ level_names_to_blit = (level_font.render('easy', 1, level_bar_possible_colors[0]
                        level_font.render('impossible', 1, level_bar_possible_colors[3]))
 max_depth_from_level = {'easy': 0, 'normal': 2, 'hard': 4, 'impossible': 10}
 
-FPS = 60
+FPS = 100
 clock = pygame.time.Clock()
 
 
@@ -392,7 +392,7 @@ class PoleEvaluation:
                         'хотя бы одно такое поле, на которое крестики наступят',
                         'и нанесут двойной удар, и встать на него самому,',
                         'тем самым защитившись от обеих угроз')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', '', '', 'o', 'x', 'x'],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', '', '', '', 'o', 'x', 'x']):
                 return (f'{picture.get_natural_text_position_evaluation(position, other_natural=True)}. создай угрозу так, чтобы крестики,',
                         'перекрывшись, не создали при этом свою. затем найди двойной удар')
             elif any([self.compare_position_with_symmetrics(position, position2)
@@ -402,7 +402,7 @@ class PoleEvaluation:
                         'единственное, что остановит все 3 угрозы - создание своей,',
                         'от которой они не смогут перекрыться нанесением двойного удара',
                         f'{'то есть иди в центр' * self.compare_position_with_symmetrics(position, ['', '', '', '', '', 'x', 'x', 'o', ''])}')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['x', '', '', '', 'x', '', '', '', 'o'],)]):
+            elif self.compare_position_with_symmetrics(position, ['x', '', '', '', 'x', '', '', '', 'o']):
                         return (f'равная позиция',
                                 'крестики могут нанести 4 разных двойных удара.',
                                 'единственное, что остановит все 4 угрозы - создание своей,',
@@ -410,16 +410,16 @@ class PoleEvaluation:
                                 'то есть это ход в любой из углов.',
                                 'после такой грамотной защиты останется только перекрываться',
                                 'от угроз победить следующим ходом друг друга, закрепив ничью')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', 'x', '', 'x', '', 'o', ''],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'x', '', 'x', '', 'o', '']):
                 return (f'оценка позиции: {picture.get_natural_text_position_evaluation(position)}',
                         'перекройся от угрозы, потом найдёшь двойной удар')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', 'x', '', 'x', '', '', 'o'],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'x', '', 'x', '', '', 'o']):
                 return (f'форсированная {picture.get_natural_text_position_evaluation(position)}',
                         'просто перекрывайся от угроз крестиков. если крестик не перекроется',
                         'от твоей угрозы, нанеси ему моментальное поражение. следующим',
                         '(после этого твоего хода) твоим ходом случайно получится',
                         'двойной удар, от которого крестик не сможет защищиться')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'x', 'o', '', 'x', '', '', ''],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', 'x', 'o', '', 'x', '', '', '']):
                 return (f'равная позиция. перекройся от угрозы крестика.',
                         'если крестик не сходит в угол, сам пойди в угол, нанеся двойной удар,',
                         'при этом, если крестик угрожает победить, сходи в угол, который',
@@ -430,34 +430,47 @@ class PoleEvaluation:
                         'дабы сохранить равенство, сходи на одну из линий, где',
                         'крестики потенциально, после нанесения двойного удара,',
                         'могут выстроить "3 в ряд"')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', 'x', '', '', 'x', 'o'],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', '', 'x', '', '', 'x', 'o']):
                 return (f'{picture.get_natural_text_position_evaluation(position)}',
                         'перекройся от угрозы крестика и надейся, что крестик',
                         'ошибётся и создаст такую угрозу "выстроить 3 в ряд", что',
                         'ты, перекрывшись от неё, случайно нанесёшь двойной удар')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'x', 'o', '', '', '', 'x', ''],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', 'x', 'o', '', '', '', 'x', '']):
                 return (f'{picture.get_natural_text_position_evaluation(position)}',
                         'охх, не знаю, как крестик упустил шанс победить, но',
                         'он всё ещё опасен и на любой твой ход имеет арсенал',
                         'из двойных ударов на первом или втором его следующем ходу.',
                         'единственное твоё спасение - центр. только так ты удержишь ничью',
                         'и даже форсируешь, я бы сказал')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', 'o', 'x', 'x', '', ''],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', '', 'o', 'x', 'x', '', '']):
                 return (f'{picture.get_natural_text_position_evaluation(position)}',
                         'не дай крестику "сходить в угол с нанесением двойного удара":',
                         'перекрой одну из линий, над которыми нависнет угроза "3 в ряд"',
                         'при нанесении двойного удара от крестика или создай свою угрозу,',
                         'перекрывшись от которой, крестик не нанесёт одновременно с этим',
                         'двойной удар')
-            
-            
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'o', 'x', 'x', '', '', '']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'сходи ноликом в угол, таким образом либо предотвратив',
+                        'двойной удар крестика, либо создав угрозу и тем самым',
+                        'форсировав ничью')
+            elif self.compare_position_with_symmetrics(position, ['', '', 'o', 'x', '', '', '', 'x', '']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'сходи на один из ближайших к тебе углов, затем, если',
+                        'крестик защитися от твоей непосредственной угрозы,',
+                        'нанеси двойной удар ходом в центр.',
+                        'забавно, что при остальных ходах, первым или вторым',
+                        'ходом, перекрываясь от твоих угроз, крестик нанесёт',
+                        'тебе двойной удар и ты проиграешь')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', '', '', 'x', 'o', 'x', ''], ['', '', '', 'o', '', 'x', '', 'x', ''])]):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'позиция очень острая. не ходи в "соседнее от нолика и краевого',
+                        'крестика не центральное" поле, иначе после перекрытия от твоей',
+                        'угрозы, 2-й ход крестика нанесёт тебе двойной удар с поражением,',
+                        'так как не защитишься от арсенала угроз двойных ударов крестика.',
+                        f'лучше сходи в "не соседний с {('ноликом', 'крестиком')[self.compare_position_with_symmetrics(position, ['', '', '', '', '', 'x', 'o', 'x', ''])]} угол",',
+                        f'{('дабы перекрыться от угрозы двойного удара, сохранив ничью', 'чтобы следующим ходом в центр нанести двойной удар с победой')[self.compare_position_with_symmetrics(position, ['', '', '', '', '', 'x', 'o', 'x', ''])]}')
 
-            '''
-            1-4
-            · · ·   |   · · ·   │   · · ·   |   · · o
-            · · x   |   o · x   │   o x x   |   x · ·
-            o x ·   |   · x ·   │   · · ·   |   · x ·
-            '''
         elif position_empties == 7:
             x_index, o_index = position.index('x'), position.index('o')
             if x_index == 4:
@@ -556,33 +569,54 @@ class PoleEvaluation:
                         'просто перекрывайся от угроз ноликов.',
                         'если нолик не перекроется от твоей угрозы,',
                         'нанеси ему моментальное поражение')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', '', 'o', 'x', 'x', '', '', 'o'],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'o', 'x', 'x', '', '', 'o']):
                 return (f'равная позиция',
                         'ни в коем случае не создавай угрозу крестиком, перекрывшись',
                         'от которой, нолик нанесёт двойной удар.')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'o', 'o', '', 'x', '', '', 'x'],)]):
+            elif self.compare_position_with_symmetrics(position, ['', '', 'o', 'o', '', 'x', '', '', 'x']):
                 return (f'равная позиция',
                         'нолики могут нанести 2 разных двойных удара.',
                         'единственное, что остановит обе угрозы - создание своей,',
                         'от которой они не смогут "перекрыться с нанесением двойного удара"')
-            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['x', 'o', '', '', 'o', 'x', '', '', ''],)]):
+            elif self.compare_position_with_symmetrics(position, ['x', 'o', '', '', 'o', 'x', '', '', '']):
                 return (f'{picture.get_natural_text_position_evaluation(position)}',
                         'перекройся и надейся, что нолики не заметят твоих 2-х угроз',
                         'поставить двойной удар и не защитятся от хотя бы от одной',
                         'из них')
-                
-
-            '''
-            1–3
-            · · ·   │   · · ·   |   · · ·
-            o · x   │   o · x   |   o · x
-            · x o   │   o x ·   |   x · o
-            
-            4-8
-            · · o   |   · · o   │   · · o   |   · · x   |   · · x
-            · o x   |   o · x   │   o · x   |   o · ·   |   x · ·
-            x · ·   |   · x ·   │   x · ·   |   o x ·   |   o · o
-            '''
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'o', '', 'x', '', 'x', 'o']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'сходи в соседние от краевого нолика клетки по',
+                        'вертикали-горизонтали-диагонали, чтобы не допустить',
+                        'двойного удара ноликов')
+            elif self.compare_position_with_symmetrics(position, ['', '', '', 'o', '', 'x', 'o', 'x', '']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'перекройся от ноликов, у тебя на следующем ходу будет',
+                        '4 разных двойных удара в арсенале, так что как бы нолик',
+                        'не сходил, у тебя найдётся один единственный двойной удар',
+                        'и ты победишь')
+            elif self.compare_position_with_symmetrics(position, ['', '', 'x', 'o', '', '', 'o', 'x', '']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'перекройся от ноликов. на следующем ходу, если нолик',
+                        'перекроется от твоей угрозы, нанесёшь двойной удар, сходив в угол')
+            elif self.compare_position_with_symmetrics(position, ['', '', 'x', 'x', '', '', 'o', '', 'o']):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'перекройся от ноликов и надеёся, что нолик не перекроет одно из',
+                        f'полей центральной {('вертикали', 'горизонтали')['x' in (position[1], position[7])]}',
+                        'если он не перекроет, ты сможешь нанести двойной удар',
+                        'на одно из этих полей, которое всё ещё сохранит',
+                        'возможность двойного удара на следующем ходу')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'o', 'o', '', 'x', 'x', '', ''], ['x', '', 'o', 'o', '', 'x', '', '', ''])]):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        'не ходи крестиком в центр и не создавай угрозы "3 в ряд", если',
+                        'хочешь попытать удачу, где соперник не заметит угрозы двойного',
+                        'удара, то есть не защитится от неё')
+            elif any([self.compare_position_with_symmetrics(position, position2) for position2 in (['', '', 'o', 'o', '', 'x', '', 'x', ''], ['', '', 'o', '', 'o', 'x', 'x', '', ''])]):
+                return (f'{picture.get_natural_text_position_evaluation(position)}',
+                        f'нолик угрожает нанести двойной удар ходом {('в один из соседних', 'в угол, рядом с которым')[self.compare_position_with_symmetrics(position, ['', '', 'o', '', 'o', 'x', 'x', '', ''])]}',
+                        f'{('от краевого нолика углов', 'нет крестика, или край, с которым соседствуют оба нолика')[self.compare_position_with_symmetrics(position, ['', '', 'o', '', 'o', 'x', 'x', '', ''])]}.',
+                        'дабы сохранить равенство, сходи на одну из линий, где крестики',
+                        'потенциально после нанесения двойного удара, могут выстроить',
+                        '"3 в ряд"')
 
     
     def get_right_human_like_indexes(self, position, field_value):
@@ -740,7 +774,10 @@ class TicTacToePole:
     def check_if_there_is_a_move(self, mouse_pos):
         move_symbol = 'x' if pole_evaluation.position.count('') % 2 == 1 else 'o'
 
-        if pole_evaluation.evaluate_pole_if_game_ended() is not None or settings.play_as not in (move_symbol, '2h'):
+        if pole_evaluation.evaluate_pole_if_game_ended() is not None:
+            picture.evaluation, picture.evaluation_color, picture.pointer = picture.get_position_evaluation_to_human_eyes()
+            return
+        elif settings.play_as not in (move_symbol, '2h'):
             return
         flag_add_picture_evaluation = False
         for pole_button in self.__pole:
@@ -846,6 +883,7 @@ class Settings:
             analysis.change_link()
             if self.analysis_on:
                 self.get_analysis_of_current_position()
+                tic_tac_toe_pole.hint()
                 
 
     def __take_back_if_cancel_button_clicked(self, mouse_pos):
@@ -888,7 +926,7 @@ class Settings:
         position_coordinates, game_positions = picture.draw_analysis(mouse_pos)
         index = 0
         for x_coord, y_coord in position_coordinates:
-            if pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5, 10 * 2, 12 * 8 + 10)).collidepoint(mouse_pos):
+            if pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5 - 12, 10 * 2, 12 * 8 + 10 + 12)).collidepoint(mouse_pos):
                 other_buttons_sound.play()
                 pole_evaluation.position = game_positions[index].copy()
                 analysis.stack_link = pole_evaluation.position.copy()
@@ -1040,21 +1078,21 @@ class Picture:
         game_evals_for_drawing, game_positions = analysis.get_analysis_info()
         game_evals_for_drawing = [0] + game_evals_for_drawing
         game_positions = [default_pole.copy()] + game_positions
-        coordinates_joining_lines = [(250, 590)]
+        coordinates_joining_lines = [(210, 590)]
 
         # drawing white net
         for y_coord in range(590 - 8 * 6, 590 + 8 * 7, 8):
-            pygame.draw.line(screen, 'white', start_pos=(250, y_coord), end_pos=(250 + 20 * 9, y_coord), width=(1, 3)[(y_coord - 590) % 48 == 0])
-        for x_coord in range(250, 250 + 200, 20):
+            pygame.draw.line(screen, 'white', start_pos=(210, y_coord), end_pos=(210 + 20 * 9, y_coord), width=(1, 3)[(y_coord - 590) % 48 == 0])
+        for x_coord in range(210, 210 + 200, 20):
             pygame.draw.line(screen, 'white', start_pos=(x_coord, 590 - 8 * 6), end_pos=(x_coord, 590 + 8 * 6))
 
         for move_number in range(10):
-            screen.blit(level_font.render(str(move_number), 1, 'white'), (247 + move_number * 20, 715 - 192))
+            screen.blit(level_font.render(str(move_number), 1, 'white'), (210 - 3 + move_number * 20, 715 - 192))
 
         for w in range(-6, 8, 2):
-            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[(w == 0) + 2 * (w > 0)]}')[w % 6 == 0], 1, 'white'), (210, 590 + 8 * (w - 1)))
+            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[(w == 0) + 2 * (w > 0)]}')[w % 6 == 0], 1, 'white'), (210 + 185, 590 + 8 * (w - 1)))
 
-        x_coord = 250
+        x_coord = 210
         for index_for_drawing in range(len(game_evals_for_drawing) - 1):
             start_y_eval, end_y_eval = game_evals_for_drawing[index_for_drawing: index_for_drawing + 2]
             start_y_coord, end_y_coord = 590 - start_y_eval * 8, 590 - end_y_eval * 8
@@ -1065,18 +1103,18 @@ class Picture:
 
         for position_index, coord_between_lines in enumerate(coordinates_joining_lines):
             x_coord, y_coord = coord_between_lines[0], 546
-            if not pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5, 10 * 2, 12 * 8 + 10)).collidepoint(mouse_pos):
+            if not pygame.Rect((x_coord - 10, 590 - 6 * 8 - 5 - 12, 10 * 2, 12 * 8 + 10 + 12)).collidepoint(mouse_pos):
                 continue
             circle_y = coordinates_joining_lines[position_index][1]
             circle_center = (x_coord, circle_y)
 
-            pygame.draw.line(screen, 'green', start_pos=(250, circle_y), end_pos=(250 + 20 * 9, circle_y), width=(1, 3)[(circle_y - 590) % 48 == 0])
+            pygame.draw.line(screen, 'green', start_pos=(210, circle_y), end_pos=(210 + 20 * 9, circle_y), width=(1, 3)[(circle_y - 590) % 48 == 0])
             pygame.draw.line(screen, 'green', start_pos=(x_coord, 590 - 8 * 6), end_pos=(x_coord, 590 + 8 * 6))
             pygame.draw.circle(screen, 'green', center=circle_center, radius=3)
             w = (circle_y - 590) // 8
-            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[(w == 0) + 2 * (w > 0)]}')[w % 6 == 0], 1, 'green'), (210, 590 + 8 * (w - 1)))
-            move_number = (x_coord - 250) // 20
-            screen.blit(level_font.render(str(move_number), 1, 'green'), (247 + move_number * 20, 715 - 192))
+            screen.blit(level_font.render((f'{('x', 'o')[w > 0]}, W{abs(w)}', f'{('x, W', 'x = o', 'o, W')[(w == 0) + 2 * (w > 0)]}')[w % 6 == 0], 1, 'green'), (210 + 185, 590 + 8 * (w - 1)))
+            move_number = (x_coord - 210) // 20
+            screen.blit(level_font.render(str(move_number), 1, 'green'), (210 - 3 + move_number * 20, 715 - 192))
             
             pygame.draw.rect(screen, 'black', rect=(x_coord - 97, y_coord + 3, 83, 83))
             detect_res_indexes = pole_evaluation.get_indexes_if_game_ended(game_positions[position_index])
@@ -1173,6 +1211,13 @@ class Picture:
 picture = Picture()
 
 while app_is_opened:
+    if settings.analysis_on and last_hint_position != pole_evaluation.position:
+        tic_tac_toe_pole.hint()
+        last_hint_position = pole_evaluation.position.copy()
+
+    elif not settings.analysis_on:
+        last_hint_position = pole_evaluation.position.copy()
+    
     mouse_pos = pygame.mouse.get_pos()
     picture(mouse_pos)
     for event in pygame.event.get():
