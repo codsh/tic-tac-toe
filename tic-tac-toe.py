@@ -81,6 +81,8 @@ class Analysis:
         self.game_history = []
         self.analyzed_game_history = []
         self.stack_link = default_pole.copy()
+        self.line_anchor = None  # где началась линия компьютера
+        self.line_top = None     # вершина стека после добавления линии
 
     def add(self, position_evaluation):
         if not settings.analysis_on:
@@ -91,17 +93,17 @@ class Analysis:
             self.stack_link = PositionObj(pole_evaluation.position, self.stack_link)
 
     def pop(self):
-        if self.game_history and settings.analysis_on and type(self.stack_link) == PositionObj and self.stack_link.position in self.game_history:
-            self.stack_link = self.game_history[self.game_history.index(self.stack_link.position)].copy()
-        if self.game_history and not settings.analysis_on:
+        if not settings.analysis_on and self.game_history:
             self.game_history.pop(-1)
             self.analyzed_game_history.pop(-1)
             self.stack_link = self.game_history[-1].copy() if self.game_history else default_pole.copy()
-        elif type(self.stack_link) == PositionObj:
+            return
+
+        if type(self.stack_link) == PositionObj:
             self.stack_link = self.stack_link.prev
-        elif self.stack_link not in self.game_history or self.stack_link == default_pole.copy() or type(self.stack_link) != PositionObj and self.game_history.index(self.stack_link) == 0:
-            self.stack_link = default_pole.copy()
-        elif type(self.stack_link) != PositionObj and self.game_history.index(self.stack_link) > 0:
+            return
+
+        if self.stack_link in self.game_history and self.game_history.index(self.stack_link) > 0:
             self.stack_link = self.game_history[self.game_history.index(self.stack_link) - 1].copy()
         else:
             self.stack_link = default_pole.copy()
@@ -352,7 +354,7 @@ class PoleEvaluation:
     
                     position[index] = sign
                     if abs(self.evaluate_position(position, 'max', max_depth=max_depth_from_level['impossible'] - 1)) == 512 / 2 ** 1:
-                        position_description += f'. перекройся от угроз(ы) двойного удара'
+                        position_description += f'. защитись от угроз(ы) двойного удара'
                         position[index] = ''
                         return position_description
                     position[index] = ''
@@ -636,7 +638,7 @@ class PoleEvaluation:
         return good_indexes
     
 
-    def get_right_move_indexes(self, level, position=None):
+    def get_right_move_indexes(self, level, position=None, human_like_flag=False):
         if position is None:
             position = self.position.copy()
         good_indexes, next_position_from_index = list(), dict()
@@ -651,7 +653,7 @@ class PoleEvaluation:
         field_value, non_min_or_max, min_or_max = ('x', 'min', 'max') if position.count('') % 2 == 1 else ('o', 'max', 'min')
         not_field_value = 'x' if field_value == 'o' else 'o'
         
-        human_like = self.get_right_human_like_indexes(position, field_value) if position.count('') in (3, 4) else set()  # humanizing engine
+        human_like = self.get_right_human_like_indexes(position, field_value) if position.count('') in (3, 4) and human_like_flag else set()  # humanizing engine
         
         if level != 'easy':
             # humanizing engine
@@ -720,7 +722,7 @@ class Engine:
         else:
             move_symbol = 'x' if pole_evaluation.position.count('') % 2 == 1 else 'o'
             try:
-                pole_evaluation.position[random.choice(pole_evaluation.get_right_move_indexes(self.level))] = move_symbol
+                pole_evaluation.position[random.choice(pole_evaluation.get_right_move_indexes(self.level, human_like_flag=True))] = move_symbol
             except IndexError:
                 pass
             if pole_evaluation.evaluate_pole_if_game_ended() is not None:
@@ -942,21 +944,26 @@ class Settings:
             return
 
         x_coord = 5
-
-        for index in range(len(settings.best_moves)):
+        for index in range(len(self.best_moves)):
             x_coord += 40
-
             if not pygame.Rect(x_coord - 8, 645, 40, 23).collidepoint(mouse_pos):
                 continue
 
             other_buttons_sound.play()
 
-            while type(analysis.stack_link) == PositionObj:
-                analysis.pop()
+            # если сверху стека ещё предыдущая линия, откатываемся к её началу
+            if analysis.line_top is not None and analysis.stack_link is analysis.line_top:
+                analysis.stack_link = analysis.line_anchor
+            analysis.line_anchor = analysis.stack_link
 
-            for position_on_computer_line in self.best_positions[:index + 1]:
+            # [1:] потому что best_positions[0] это сама текущая позиция
+            for position_on_computer_line in self.best_positions[1:index + 1]:
                 pole_evaluation.position = position_on_computer_line.copy()
                 analysis.add(position_evaluation=None)
+
+            pole_evaluation.position = self.best_positions[index].copy()
+            analysis.line_top = analysis.stack_link
+            break
 
     def check_if_any_switch_is_changed(self):
         mouse_pos = pygame.mouse.get_pos()
